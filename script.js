@@ -1,830 +1,726 @@
 
 "use strict";
 
-/* =====================================
-   AXEOS 1.2 DESKTOP ENGINE
-===================================== */
+const STORAGE_KEY = "axeos_13_desktop";
 
-const $ = selector => document.querySelector(selector);
+const APPS = [
+  { id: "files", name: "Files", icon: "F", description: "Browse selected local files." },
+  { id: "writer", name: "Writer", icon: "W", description: "Write and edit notes." },
+  { id: "calculator", name: "Calculator", icon: "C", description: "Perform calculations." },
+  { id: "clock", name: "Clock", icon: "T", description: "View the current time." },
+  { id: "terminal", name: "Terminal", icon: ">", description: "Explore the axeOS command simulator." },
+  { id: "settings", name: "Settings", icon: "S", description: "Customize your desktop." },
+  { id: "appstore", name: "App Store", icon: "A", description: "Browse available applications." },
+  { id: "systeminfo", name: "System Info", icon: "I", description: "View desktop information." },
+  { id: "developer", name: "Developer", icon: "D", description: "Explore axeOS language modules." }
+];
 
-const desktop = $("#desktop");
-const bootScreen = $("#bootScreen");
-const windowLayer = $("#windowLayer");
-const notification = $("#notification");
-
-/* =====================================
-   SYSTEM CONFIGURATION
-===================================== */
-
-const DEFAULT_SETTINGS = {
-  accent: "#36b58a",
-  wallpaper: "emerald",
-  customWallpaper: "",
-  theme: "dark",
-  scale: "1",
-  sound: true,
-  installed: [
-    "files",
-    "notes",
-    "settings",
-    "store",
-    "terminal",
-    "about"
-  ]
+const DEFAULT_STATE = {
+  items: APPS.map((app, index) => ({
+    id: "item-" + app.id,
+    type: "app",
+    appId: app.id,
+    name: app.name,
+    position: index
+  })),
+  dock: ["files", "writer", "terminal", "calculator"],
+  wallpaper: "emerald"
 };
 
-function loadSettings() {
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem("axeos-settings") || "{}"
-    );
+let state = loadState();
+let activeFolderId = null;
+let draggedItemId = null;
+let openWindows = new Map();
+let windowCounter = 0;
+let zIndex = 10;
 
-    return {
-      ...DEFAULT_SETTINGS,
-      ...saved,
-      installed: Array.isArray(saved.installed)
-        ? saved.installed
-        : [...DEFAULT_SETTINGS.installed]
-    };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
+const desktopGrid = document.getElementById("desktop-grid");
+const dockItems = document.getElementById("dock-items");
+const windowLayer = document.getElementById("window-layer");
+const contextMenu = document.getElementById("context-menu");
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved && Array.isArray(saved.items) && Array.isArray(saved.dock)) {
+      return { ...DEFAULT_STATE, ...saved };
+    }
+  } catch (error) {
+    console.warn("axeOS state could not be loaded:", error);
+  }
+  return structuredClone(DEFAULT_STATE);
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error("Could not save axeOS settings:", error);
+    alert("axeOS could not save changes. Browser storage may be full.");
   }
 }
 
-let settings = loadSettings();
-
-function saveSettings() {
-  try {
-    localStorage.setItem(
-      "axeos-settings",
-      JSON.stringify(settings)
-    );
-  } catch {
-    notify("Storage limit reached. Some settings could not be saved.");
-  }
+function getApp(appId) {
+  return APPS.find(app => app.id === appId);
 }
 
-/* =====================================
-   WALLPAPER ENGINE
-===================================== */
-
-const wallpapers = {
-  emerald:
-    "radial-gradient(ellipse at 75% 25%,#14533b,transparent 45%),linear-gradient(135deg,#061510,#0b241c)",
-
-  midnight:
-    "radial-gradient(ellipse at 70% 20%,#303a65,transparent 50%),linear-gradient(135deg,#090d20,#10182c)",
-
-  obsidian:
-    "radial-gradient(ellipse at 70% 30%,#393939,transparent 45%),linear-gradient(135deg,#090909,#202020)",
-
-  ocean:
-    "radial-gradient(ellipse at 70% 25%,#146e83,transparent 50%),linear-gradient(135deg,#06131d,#0b3346)",
-
-  forest:
-    "radial-gradient(ellipse at 70% 20%,#4b6030,transparent 50%),linear-gradient(135deg,#10180a,#26351b)"
-};
-
-function applySettings() {
-  document.documentElement.style.setProperty(
-    "--accent",
-    settings.accent
-  );
-
-  document.documentElement.style.setProperty(
-    "--scale",
-    settings.scale
-  );
-
-  const wallpaper = settings.customWallpaper ||
-    wallpapers[settings.wallpaper] ||
-    wallpapers.emerald;
-
-  desktop.style.background = wallpaper;
-
-  document.body.classList.toggle(
-    "light",
-    settings.theme === "light"
-  );
+function getItem(itemId) {
+  return state.items.find(item => item.id === itemId);
 }
 
-applySettings();
-
-/* =====================================
-   NOTIFICATION ENGINE
-===================================== */
-
-let notificationTimer;
-
-function notify(message) {
-  notification.textContent = message;
-  notification.style.display = "block";
-
-  clearTimeout(notificationTimer);
-
-  notificationTimer = setTimeout(() => {
-    notification.style.display = "none";
-  }, 2800);
+function createId(prefix = "item") {
+  return prefix + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
 }
 
-/* =====================================
-   AUDIO ENGINE
-===================================== */
+function renderDesktop() {
+  desktopGrid.innerHTML = "";
 
-let audioContext;
+  state.items.forEach(item => {
+    const element = document.createElement("div");
+    element.className = "desktop-item";
+    element.draggable = true;
+    element.dataset.itemId = item.id;
+    element.title = item.type === "folder" ? "Open folder" : "Open " + item.name;
 
-async function initializeAudio() {
-  if (!settings.sound) return false;
+    const icon = document.createElement("div");
+    icon.className = "app-icon" + (item.type === "folder" ? " folder-icon" : "");
 
-  try {
-    audioContext ||= new (
-      window.AudioContext ||
-      window.webkitAudioContext
-    )();
-
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
+    if (item.type === "folder") {
+      icon.textContent = "▰";
+    } else {
+      const app = getApp(item.appId);
+      icon.textContent = app ? app.icon : "?";
     }
 
-    return true;
-  } catch (error) {
-    console.warn("Audio unavailable:", error);
-    return false;
-  }
-}
+    const label = document.createElement("span");
+    label.className = "app-label";
+    label.textContent = item.name;
 
-function playStartupSound() {
-  if (!settings.sound || !audioContext) return;
+    element.append(icon, label);
 
-  const notes = [
-    { frequency: 392, start: 0, duration: 0.4 },
-    { frequency: 523.25, start: 0.23, duration: 0.45 },
-    { frequency: 659.25, start: 0.48, duration: 0.8 }
-  ];
+    element.addEventListener("dblclick", () => openItem(item.id));
+    element.addEventListener("click", () => {
+      document.querySelectorAll(".desktop-item").forEach(el => el.classList.remove("selected"));
+      element.classList.add("selected");
+    });
 
-  notes.forEach(note => {
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
+    element.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      showContextMenu(event.clientX, event.clientY, item.id);
+    });
 
-    oscillator.type = "sine";
-    oscillator.frequency.value = note.frequency;
+    element.addEventListener("dragstart", event => {
+      draggedItemId = item.id;
+      element.classList.add("dragging");
+      event.dataTransfer.setData("text/plain", item.id);
+      event.dataTransfer.effectAllowed = "move";
+    });
 
-    const start = audioContext.currentTime + note.start;
+    element.addEventListener("dragend", () => {
+      draggedItemId = null;
+      element.classList.remove("dragging");
+      document.querySelectorAll(".desktop-item").forEach(el => el.classList.remove("drop-target"));
+    });
 
-    gain.gain.setValueAtTime(0.001, start);
-    gain.gain.linearRampToValueAtTime(0.11, start + 0.09);
-    gain.gain.exponentialRampToValueAtTime(
-      0.001,
-      start + note.duration
-    );
+    element.addEventListener("dragover", event => {
+      if (!draggedItemId || draggedItemId === item.id) return;
+      event.preventDefault();
+      element.classList.add("drop-target");
+    });
 
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
+    element.addEventListener("dragleave", () => element.classList.remove("drop-target"));
 
-    oscillator.start(start);
-    oscillator.stop(start + note.duration);
+    element.addEventListener("drop", event => {
+      event.preventDefault();
+      element.classList.remove("drop-target");
+      const sourceId = event.dataTransfer.getData("text/plain") || draggedItemId;
+      if (sourceId && sourceId !== item.id) handleDesktopDrop(sourceId, item.id);
+    });
+
+    desktopGrid.appendChild(element);
   });
 }
 
-/* =====================================
-   BOOT ENGINE
-===================================== */
+function handleDesktopDrop(sourceId, targetId) {
+  const source = getItem(sourceId);
+  const target = getItem(targetId);
 
-let booting = false;
+  if (!source || !target) return;
 
-async function bootSystem() {
-  if (booting) return;
-
-  booting = true;
-
-  const button = $("#startButton");
-  const status = $("#bootStatus");
-  const progress = $("#bootProgress");
-
-  button.disabled = true;
-  button.textContent = "Starting...";
-
-  await initializeAudio();
-
-  const stages = [
-    "Initializing axeOS core...",
-    "Loading desktop services...",
-    "Applying preferences...",
-    "Loading application registry...",
-    "Preparing desktop..."
-  ];
-
-  for (let i = 0; i < stages.length; i++) {
-    status.textContent = stages[i];
-    progress.style.width = `${(i + 1) * 20}%`;
-
-    await new Promise(resolve =>
-      setTimeout(resolve, 420)
-    );
+  // Dropping an app onto a folder moves it into that folder.
+  if (target.type === "folder") {
+    moveIntoFolder(source, target);
+    return;
   }
 
-  playStartupSound();
+  // Dropping an app onto another app creates a folder.
+  if (source.type === "app" && target.type === "app") {
+    createFolderFrom(source, target);
+    return;
+  }
 
-  bootScreen.classList.add("boot-exit");
+  // Reorder items by moving the dragged item after the target.
+  const sourceIndex = state.items.findIndex(item => item.id === sourceId);
+  const targetIndex = state.items.findIndex(item => item.id === targetId);
+  const [moved] = state.items.splice(sourceIndex, 1);
+  const newTargetIndex = state.items.findIndex(item => item.id === targetId);
+  state.items.splice(newTargetIndex + 1, 0, moved);
 
-  await new Promise(resolve =>
-    setTimeout(resolve, 550)
+  saveState();
+  renderDesktop();
+}
+
+function createFolderFrom(first, second) {
+  const folder = {
+    id: createId("folder"),
+    type: "folder",
+    name: "New Folder",
+    items: [first, second]
+  };
+
+  state.items = state.items.filter(item =>
+    item.id !== first.id && item.id !== second.id
   );
 
-  bootScreen.classList.add("hidden");
-  desktop.classList.remove("hidden");
-
-  booting = false;
-
-  notify("Welcome to axeOS.");
+  state.items.push(folder);
+  saveState();
+  renderDesktop();
 }
 
-$("#startButton").addEventListener(
-  "click",
-  bootSystem
-);
+function moveIntoFolder(source, folder) {
+  if (source.type === "folder" && folder.id === source.id) return;
 
-/* =====================================
-   CLOCK AND STATUS
-===================================== */
+  state.items = state.items.filter(item => item.id !== source.id);
 
-function updateClock() {
-  $("#clock").textContent =
-    new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
+  if (source.type === "folder") {
+    folder.items.push(...source.items);
+  } else {
+    folder.items.push(source);
+  }
+
+  saveState();
+  renderDesktop();
+}
+
+function openItem(itemId) {
+  const item = getItem(itemId);
+  if (!item) return;
+
+  if (item.type === "folder") {
+    openFolder(item);
+  } else {
+    openApp(item.appId);
+  }
+}
+
+function openFolder(folder) {
+  activeFolderId = folder.id;
+  const overlay = document.getElementById("folder-overlay");
+  const title = document.getElementById("folder-title");
+  const contents = document.getElementById("folder-apps");
+
+  title.value = folder.name;
+  contents.innerHTML = "";
+
+  folder.items.forEach(child => {
+    const app = getApp(child.appId);
+    if (!app) return;
+
+    const element = document.createElement("div");
+    element.className = "desktop-item";
+    element.innerHTML = `
+      <div class="app-icon"></div>
+      <span class="app-label"></span>
+    `;
+    element.querySelector(".app-icon").textContent = app.icon;
+    element.querySelector(".app-label").textContent = child.name;
+    element.addEventListener("dblclick", () => openApp(child.appId));
+    element.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      showFolderItemMenu(event.clientX, event.clientY, child.id, folder.id);
+    });
+    element.draggable = true;
+    element.addEventListener("dragstart", event => {
+      event.dataTransfer.setData("text/plain", child.id);
+    });
+    contents.appendChild(element);
+  });
+
+  overlay.classList.remove("hidden");
+}
+
+function closeFolder() {
+  document.getElementById("folder-overlay").classList.add("hidden");
+  activeFolderId = null;
+}
+
+document.getElementById("close-folder").addEventListener("click", closeFolder);
+
+document.getElementById("folder-title").addEventListener("change", event => {
+  const folder = getItem(activeFolderId);
+  if (!folder) return;
+  folder.name = event.target.value.trim() || "New Folder";
+  saveState();
+  renderDesktop();
+});
+
+function showFolderItemMenu(x, y, childId, folderId) {
+  contextMenu.innerHTML = "";
+  addMenuButton("Move to desktop", () => {
+    const folder = getItem(folderId);
+    if (!folder) return;
+    const index = folder.items.findIndex(item => item.id === childId);
+    if (index < 0) return;
+    state.items.push(folder.items.splice(index, 1)[0]);
+    if (folder.items.length === 0) {
+      state.items = state.items.filter(item => item.id !== folder.id);
+    }
+    saveState();
+    closeFolder();
+    renderDesktop();
+  });
+  positionMenu(x, y);
+}
+
+function addMenuButton(label, callback) {
+  const button = document.createElement("button");
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    callback();
+    contextMenu.classList.add("hidden");
+  });
+  contextMenu.appendChild(button);
+}
+
+function showContextMenu(x, y, itemId) {
+  const item = getItem(itemId);
+  if (!item) return;
+
+  contextMenu.innerHTML = "";
+  addMenuButton("Open", () => openItem(itemId));
+
+  if (item.type === "folder") {
+    addMenuButton("Rename folder", () => {
+      const name = prompt("Folder name:", item.name);
+      if (name && name.trim()) {
+        item.name = name.trim();
+        saveState();
+        renderDesktop();
+      }
+    });
+  }
+
+  if (item.type === "app") {
+    addMenuButton("Add to dock", () => pinApp(item.appId));
+    addMenuButton("Rename shortcut", () => {
+      const name = prompt("Shortcut name:", item.name);
+      if (name && name.trim()) {
+        item.name = name.trim();
+        saveState();
+        renderDesktop();
+      }
+    });
+  }
+
+  addMenuButton("Delete from desktop", () => {
+    state.items = state.items.filter(entry => entry.id !== itemId);
+    saveState();
+    renderDesktop();
+  });
+
+  positionMenu(x, y);
+}
+
+function positionMenu(x, y) {
+  contextMenu.style.left = Math.min(x, innerWidth - 190) + "px";
+  contextMenu.style.top = Math.min(y, innerHeight - 190) + "px";
+  contextMenu.classList.remove("hidden");
+}
+
+document.addEventListener("click", event => {
+  if (!contextMenu.contains(event.target)) contextMenu.classList.add("hidden");
+});
+
+function renderDock() {
+  dockItems.innerHTML = "";
+
+  state.dock.forEach(appId => {
+    const app = getApp(appId);
+    if (!app) return;
+
+    const button = document.createElement("button");
+    button.className = "dock-item";
+    button.textContent = app.icon;
+    button.title = app.name;
+    button.dataset.appId = appId;
+
+    if (openWindows.has(appId)) button.classList.add("running");
+
+    button.addEventListener("click", () => openApp(appId));
+    button.draggable = true;
+    button.addEventListener("dragstart", event => {
+      event.dataTransfer.setData("text/plain", "dock:" + appId);
     });
 
-  $("#networkStatus").textContent =
-    navigator.onLine ? "ONLINE" : "OFFLINE";
+    dockItems.appendChild(button);
+  });
 }
 
-updateClock();
-
-setInterval(updateClock, 1000);
-
-window.addEventListener("online", updateClock);
-window.addEventListener("offline", updateClock);
-
-/* =====================================
-   APPLICATION REGISTRY
-===================================== */
-
-const apps = {
-
-  files: {
-    title: "Files",
-    icon: "▤",
-    render: () => `
-      <h2>File Manager</h2>
-      <p>Choose files from your device.</p>
-      <input id="filePicker" type="file" multiple>
-      <div id="fileList"></div>
-    `
-  },
-
-  notes: {
-    title: "Notes",
-    icon: "▧",
-    render: () => `
-      <h2>axeOS Notes</h2>
-      <textarea id="notesArea"
-        placeholder="Start writing..."></textarea>
-      <button class="action" id="saveNotes">
-        Save Notes
-      </button>
-      <p id="saveStatus"></p>
-    `
-  },
-
-  settings: {
-    title: "System Settings",
-    icon: "⚙",
-    render: () => `
-      <h2>System Settings</h2>
-
-      <div class="setting-card">
-        <h3>Appearance</h3>
-        <select id="themeSelect">
-          <option value="dark">Dark Mode</option>
-          <option value="light">Light Mode</option>
-        </select>
-      </div>
-
-      <div class="setting-card">
-        <h3>Accent Color</h3>
-        <div class="color-row">
-          <input type="color" id="accentPicker">
-          <span>Interface accent</span>
-        </div>
-      </div>
-
-      <div class="setting-card">
-        <h3>Wallpaper Gallery</h3>
-        <div class="wallpapers">
-          <button class="wallpaper-choice"
-            data-wall="emerald"
-            style="background:linear-gradient(135deg,#061510,#20744e)">
-          </button>
-
-          <button class="wallpaper-choice"
-            data-wall="midnight"
-            style="background:linear-gradient(135deg,#090d20,#394b86)">
-          </button>
-
-          <button class="wallpaper-choice"
-            data-wall="obsidian"
-            style="background:linear-gradient(135deg,#090909,#555)">
-          </button>
-
-          <button class="wallpaper-choice"
-            data-wall="ocean"
-            style="background:linear-gradient(135deg,#06131d,#1685a2)">
-          </button>
-
-          <button class="wallpaper-choice"
-            data-wall="forest"
-            style="background:linear-gradient(135deg,#10180a,#687e3c)">
-          </button>
-        </div>
-
-        <h3>Custom Wallpaper</h3>
-        <input type="file" id="wallpaperUpload" accept="image/*">
-        <button class="action" id="removeCustomWallpaper">
-          Restore Preset
-        </button>
-      </div>
-
-      <div class="setting-card">
-        <h3>Interface Scale</h3>
-        <select id="scaleSelect">
-          <option value="0.85">85%</option>
-          <option value="1">100%</option>
-          <option value="1.15">115%</option>
-          <option value="1.3">130%</option>
-        </select>
-      </div>
-
-      <div class="setting-card">
-        <h3>Startup Sound</h3>
-        <select id="soundSelect">
-          <option value="true">Enabled</option>
-          <option value="false">Disabled</option>
-        </select>
-      </div>
-
-      <div class="setting-card">
-        <h3>Reset Preferences</h3>
-        <button class="action" id="resetSettings">
-          Restore Defaults
-        </button>
-      </div>
-    `
-  },
-
-  store: {
-    title: "axeOS App Store",
-    icon: "▣",
-    render: () => `
-      <h2>axeOS App Store</h2>
-      <p>Discover applications for your desktop.</p>
-
-      <input
-        class="store-search"
-        id="storeSearch"
-        placeholder="Search applications..."
-      >
-
-      <div id="storeApps"></div>
-    `
-  },
-
-  terminal: {
-    title: "Terminal",
-    icon: "⌘",
-    render: () => `
-      <h2>axeOS Terminal</h2>
-      <p>axeOS Shell 1.2.0</p>
-
-      <div id="terminalOutput">
-        Welcome to axeOS Shell.<br>
-        Type help to view commands.
-      </div>
-
-      <input id="terminalInput"
-        placeholder="Enter a command..."
-        autocomplete="off">
-    `
-  },
-
-  about: {
-    title: "About axeOS",
-    icon: "◈",
-    render: () => `
-      <h2>axeOS</h2>
-      <p>A quieter way to compute.</p>
-
-      <div class="setting-card">
-        <p>Version: 1.2.0</p>
-        <p>Architecture: Hybrid Web + Native</p>
-        <p>Desktop: axeOS Desktop</p>
-        <p>Developer: Rahim</p>
-        <p>Project status: Development</p>
-      </div>
-    `
+function pinApp(appId) {
+  if (!state.dock.includes(appId)) {
+    state.dock.push(appId);
+    saveState();
+    renderDock();
   }
-
-};
-
-/* =====================================
-   APP STORE CATALOG
-===================================== */
-
-const catalog = [
-
-  {
-    id: "calculator",
-    name: "Calculator",
-    icon: "＋",
-    category: "Utilities",
-    description: "Perform everyday calculations."
-  },
-
-  {
-    id: "clockapp",
-    name: "Clock",
-    icon: "◷",
-    category: "Utilities",
-    description: "Digital clock and date."
-  },
-
-  {
-    id: "writer",
-    name: "Writer",
-    icon: "▤",
-    category: "Productivity",
-    description: "A distraction-free writing space."
-  },
-
-  {
-    id: "systeminfo",
-    name: "System Monitor",
-    icon: "◈",
-    category: "System",
-    description: "View browser and device information."
-  }
-
-];
-
-function getApp(id) {
-  if (apps[id]) return apps[id];
-
-  const item = catalog.find(app => app.id === id);
-
-  if (!item) return null;
-
-  return {
-    title: item.name,
-    icon: item.icon,
-    render: () => renderExtraApp(id)
-  };
 }
 
-/* =====================================
-   EXTRA APPLICATION INTERFACES
-===================================== */
-
-function renderExtraApp(id) {
-
-  if (id === "calculator") {
-    return `
-      <h2>Calculator</h2>
-      <input id="calcDisplay" readonly placeholder="0">
-
-      <div class="calc-buttons">
-        ${["7","8","9","/","4","5","6","*",
-          "1","2","3","-","0",".","=","+","C"]
-          .map(key => `
-            <button class="action calc-key"
-              data-key="${key}">${key}</button>
-          `).join("")}
-      </div>
-    `;
-  }
-
-  if (id === "clockapp") {
-    return `
-      <h2>Clock</h2>
-      <h1 id="clockAppTime">00:00</h1>
-      <p id="clockAppDate"></p>
-    `;
-  }
-
-  if (id === "writer") {
-    return `
-      <h2>axeOS Writer</h2>
-      <textarea id="notesArea"
-        placeholder="Your writing starts here..."></textarea>
-      <button class="action" id="saveNotes">Save Document</button>
-      <p id="saveStatus"></p>
-    `;
-  }
-
-  if (id === "systeminfo") {
-    return `
-      <h2>System Monitor</h2>
-      <div class="setting-card">
-        <p>Platform: ${escapeHTML(navigator.platform)}</p>
-        <p>Language: ${escapeHTML(navigator.language)}</p>
-        <p>Screen: ${screen.width} × ${screen.height}</p>
-        <p>Connection: ${navigator.onLine ? "Online" : "Offline"}</p>
-        <p>CPU cores reported: ${navigator.hardwareConcurrency || "Unavailable"}</p>
-        <p>Memory estimate: ${
-          navigator.deviceMemory
-            ? navigator.deviceMemory + " GB"
-            : "Unavailable"
-        }</p>
-      </div>
-    `;
-  }
-
-  return "<p>Application unavailable.</p>";
+function unpinApp(appId) {
+  state.dock = state.dock.filter(id => id !== appId);
+  saveState();
+  renderDock();
 }
 
-/* =====================================
-   HTML ESCAPING
-===================================== */
+document.getElementById("dock").addEventListener("dragover", event => {
+  event.preventDefault();
+});
 
-function escapeHTML(value) {
-  return String(value).replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
-}
+document.getElementById("dock").addEventListener("drop", event => {
+  event.preventDefault();
+  const value = event.dataTransfer.getData("text/plain");
+  const item = getItem(value);
+  if (item && item.type === "app") pinApp(item.appId);
+});
 
-/* =====================================
-   WINDOW MANAGER
-===================================== */
+function openApp(appId) {
+  const app = getApp(appId);
+  if (!app) return;
 
-let highestZ = 20;
-let windowCounter = 0;
-
-function openApp(name) {
-  const app = getApp(name);
-
-  if (!app) {
-    notify("Application not found.");
+  if (openWindows.has(appId)) {
+    const existing = openWindows.get(appId);
+    existing.classList.remove("minimized");
+    existing.style.display = "flex";
+    focusWindow(existing);
+    renderDock();
     return;
   }
 
-  if (!settings.installed.includes(name)) {
-    notify("Install this application from the App Store first.");
-    return;
-  }
+  const window = document.createElement("section");
+  window.className = "window active";
+  window.dataset.appId = appId;
+  window.style.zIndex = ++zIndex;
 
-  const win = document.createElement("section");
+  const titlebar = document.createElement("div");
+  titlebar.className = "window-titlebar";
 
-  win.className = "window";
-  win.dataset.app = name;
+  const title = document.createElement("span");
+  title.className = "window-title";
+  title.textContent = app.name;
 
-  const header = document.createElement("div");
-  header.className = "window-header";
-
-  const title = document.createElement("strong");
-  title.textContent = app.title;
-
-  const controls = document.createElement("div");
-  controls.className = "window-controls";
+  const actions = document.createElement("div");
+  actions.className = "window-actions";
 
   const minimize = document.createElement("button");
-  minimize.textContent = "−";
+  minimize.textContent = "—";
   minimize.title = "Minimize";
+  minimize.addEventListener("click", () => {
+    window.style.display = "none";
+    window.classList.add("minimized");
+    renderDock();
+  });
 
   const close = document.createElement("button");
   close.textContent = "×";
   close.title = "Close";
+  close.addEventListener("click", () => closeApp(appId));
 
-  controls.append(minimize, close);
-  header.append(title, controls);
+  actions.append(minimize, close);
+  titlebar.append(title, actions);
 
   const content = document.createElement("div");
   content.className = "window-content";
-  content.innerHTML = app.render();
+  content.innerHTML = appContent(appId);
 
-  win.append(header, content);
+  window.append(titlebar, content);
+  windowLayer.appendChild(window);
+  openWindows.set(appId, window);
 
-  const offset = (windowCounter++ % 8) * 18;
+  makeWindowDraggable(window, titlebar);
+  window.addEventListener("pointerdown", () => focusWindow(window));
 
-  win.style.left = `calc(50% + ${offset}px)`;
-  win.style.top = `${35 + offset}px`;
-
-  windowLayer.appendChild(win);
-
-  focusWindow(win);
-  makeDraggable(win, header);
-
-  minimize.addEventListener("click", () => {
-    win.style.display = "none";
-    notify(`${app.title} minimized.`);
-  });
-
-  close.addEventListener("click", () => {
-    win.remove();
-  });
-
-  win.addEventListener("pointerdown", () => {
-    focusWindow(win);
-  });
-
-  initializeApp(name, win);
-
-  notify(`${app.title} opened.`);
+  focusWindow(window);
+  renderDock();
+  initializeApp(appId, content);
 }
 
-function focusWindow(win) {
-  highestZ++;
-  win.style.zIndex = highestZ;
+function closeApp(appId) {
+  const window = openWindows.get(appId);
+  if (window) window.remove();
+  openWindows.delete(appId);
+  renderDock();
 }
 
-function makeDraggable(win, header) {
-  let dragging = false;
-  let startX = 0;
-  let startY = 0;
-  let originalLeft = 0;
-  let originalTop = 0;
+function focusWindow(window) {
+  document.querySelectorAll(".window").forEach(el => el.classList.remove("active"));
+  window.classList.add("active");
+  window.style.zIndex = ++zIndex;
+}
 
-  header.addEventListener("pointerdown", event => {
+function makeWindowDraggable(window, handle) {
+  let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
+
+  handle.addEventListener("pointerdown", event => {
     if (event.target.closest("button")) return;
 
-    dragging = true;
-
-    const rect = win.getBoundingClientRect();
-
+    const rect = window.getBoundingClientRect();
     startX = event.clientX;
     startY = event.clientY;
+    initialLeft = rect.left;
+    initialTop = rect.top;
 
-    originalLeft = rect.left;
-    originalTop = rect.top;
+    window.style.left = initialLeft + "px";
+    window.style.top = initialTop + "px";
+    window.style.transform = "none";
 
-    header.setPointerCapture(event.pointerId);
-    focusWindow(win);
-  });
+    handle.setPointerCapture(event.pointerId);
 
-  header.addEventListener("pointermove", event => {
-    if (!dragging) return;
-
-    const layer = windowLayer.getBoundingClientRect();
-
-    const maxLeft = layer.width - 80;
-    const maxTop = layer.height - 40;
-
-    const left = Math.max(
-      0,
-      Math.min(
-        maxLeft,
-        originalLeft + event.clientX - startX - layer.left
-      )
-    );
-
-    const top = Math.max(
-      0,
-      Math.min(
-        maxTop,
-        originalTop + event.clientY - startY - layer.top
-      )
-    );
-
-    win.style.left = `${left}px`;
-    win.style.top = `${top}px`;
-    win.style.transform = "none";
-  });
-
-  header.addEventListener("pointerup", () => {
-    dragging = false;
-  });
-
-  header.addEventListener("pointercancel", () => {
-    dragging = false;
-  });
-}
-
-/* =====================================
-   APPLICATION INITIALIZATION
-===================================== */
-
-function initializeApp(name, win) {
-
-  if (name === "files") setupFiles(win);
-
-  if (name === "notes" || name === "writer") {
-    setupNotes(win, name);
-  }
-
-  if (name === "settings") setupSettings(win);
-
-  if (name === "store") setupStore(win);
-
-  if (name === "terminal") setupTerminal(win);
-
-  if (name === "calculator") setupCalculator(win);
-
-  if (name === "clockapp") setupClock(win);
-
-}
-
-/* =====================================
-   FILE MANAGER
-===================================== */
-
-function setupFiles(win) {
-  const picker = win.querySelector("#filePicker");
-  const list = win.querySelector("#fileList");
-
-  picker.addEventListener("change", () => {
-    list.replaceChildren();
-
-    [...picker.files].forEach(file => {
-      const item = document.createElement("p");
-
-      item.textContent =
-        `${file.name} — ${formatBytes(file.size)}`;
-
-      list.appendChild(item);
-    });
-  });
-}
-
-function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/* =====================================
-   NOTES AND WRITER
-===================================== */
-
-function setupNotes(win, name) {
-  const area = win.querySelector("#notesArea");
-  const save = win.querySelector("#saveNotes");
-  const status = win.querySelector("#saveStatus");
-
-  const storageKey = `axeos-${name}`;
-
-  area.value = localStorage.getItem(storageKey) || "";
-
-  save.addEventListener("click", () => {
-    try {
-      localStorage.setItem(storageKey, area.value);
-      status.textContent = "Document saved successfully.";
-    } catch {
-      status.textContent = "Could not save. Storage may be full.";
+    function move(moveEvent) {
+      const left = Math.max(0, Math.min(innerWidth - 120,
+        initialLeft + moveEvent.clientX - startX));
+      const top = Math.max(48, Math.min(innerHeight - 80,
+        initialTop + moveEvent.clientY - startY));
+      window.style.left = left + "px";
+      window.style.top = top + "px";
     }
+
+    function stop() {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", stop);
+      handle.removeEventListener("pointercancel", stop);
+    }
+
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
   });
 }
 
-/* =====================================
-   TERMINAL SIMULATOR
-===================================== */
+function appContent(appId) {
+  switch (appId) {
+    case "files":
+      return `
+        <h2>Files</h2>
+        <p>Select a local file to inspect its name and size. This is not a persistent system filesystem.</p>
+        <input type="file" id="file-picker" multiple>
+        <div id="file-results"></div>`;
 
-function setupTerminal(win) {
-  const input = win.querySelector("#terminalInput");
-  const output = win.querySelector("#terminalOutput");
+    case "writer":
+      return `
+        <h2>Writer</h2>
+        <textarea id="writer-text" placeholder="Start writing..."
+          style="width:100%;height:260px;background:#0a2018;color:white;border:1px solid #35594b;border-radius:10px;padding:12px"></textarea>
+        <p>Notes are saved in this browser.</p>`;
+
+    case "calculator":
+      return `
+        <h2>Calculator</h2>
+        <input id="calc-input" placeholder="Example: 12 * (4 + 3)"
+          style="width:100%;padding:12px;background:#071b16;color:white;border:1px solid #35594b;border-radius:9px">
+        <button id="calc-run" style="margin-top:10px">Calculate</button>
+        <p id="calc-result">Enter an expression.</p>`;
+
+    case "clock":
+      return `<h2>Clock</h2><h1 id="clock-large"></h1><p>Your browser's local time.</p>`;
+
+    case "terminal":
+      return `
+        <h2>axeOS Terminal</h2>
+        <div id="terminal-output" style="height:230px;overflow:auto;background:#03100c;padding:12px;border-radius:9px;font-family:monospace">
+          axeOS browser terminal. Type help to begin.
+        </div>
+        <input id="terminal-input" placeholder="Enter command..."
+          style="width:100%;margin-top:10px;padding:10px;background:#071b16;color:white;border:1px solid #35594b">`;
+
+    case "settings":
+      return `
+        <h2>Desktop Settings</h2>
+        <p>Choose your desktop background.</p>
+        <div class="app-list">
+          <button data-wallpaper="emerald">Emerald</button>
+          <button data-wallpaper="midnight">Midnight</button>
+          <button data-wallpaper="forest">Forest</button>
+        </div>
+        <h3>Dock management</h3>
+        <div id="dock-settings"></div>`;
+
+    case "appstore":
+      return `
+        <h2>axeOS App Store</h2>
+        <p>Install available desktop applications.</p>
+        <div class="app-list" id="store-list"></div>`;
+
+    case "systeminfo":
+      return `
+        <h2>System Information</h2>
+        <p>System: axeOS Browser Desktop</p>
+        <p>Version: 1.3.0</p>
+        <p>Runtime: Web browser</p>
+        <p>Storage: Browser localStorage</p>
+        <p>Kernel: Not connected to this desktop.</p>`;
+
+    case "developer":
+      return `
+        <h2>Developer Edition</h2>
+        <p>axeOS includes source-code foundations for multiple languages.</p>
+        <div class="app-list">
+          <div class="app-card"><strong>Python</strong><small>System utilities and automation</small></div>
+          <div class="app-card"><strong>Java</strong><small>Application framework</small></div>
+          <div class="app-card"><strong>Ruby</strong><small>Configuration and scripting</small></div>
+          <div class="app-card"><strong>JavaScript</strong><small>Browser desktop runtime</small></div>
+        </div>
+        <p>These language modules require their own runtimes. This page does not execute them.</p>`;
+
+    default:
+      return "<h2>Application</h2><p>Application content is not available.</p>";
+  }
+}
+
+function initializeApp(appId, content) {
+  if (appId === "files") {
+    content.querySelector("#file-picker").addEventListener("change", event => {
+      const results = content.querySelector("#file-results");
+      results.innerHTML = "";
+      [...event.target.files].forEach(file => {
+        const row = document.createElement("p");
+        row.textContent = file.name + " — " + Math.round(file.size / 1024) + " KB";
+        results.appendChild(row);
+      });
+    });
+  }
+
+  if (appId === "writer") {
+    const textarea = content.querySelector("#writer-text");
+    textarea.value = localStorage.getItem("axeos_writer_note") || "";
+    textarea.addEventListener("input", () => {
+      localStorage.setItem("axeos_writer_note", textarea.value);
+    });
+  }
+
+  if (appId === "calculator") {
+    content.querySelector("#calc-run").addEventListener("click", () => {
+      const expression = content.querySelector("#calc-input").value;
+      const result = content.querySelector("#calc-result");
+      try {
+        result.textContent = "Result: " + safeCalculate(expression);
+      } catch {
+        result.textContent = "Invalid expression.";
+      }
+    });
+  }
+
+  if (appId === "clock") {
+    const update = () => {
+      const display = content.querySelector("#clock-large");
+      if (display) display.textContent = new Date().toLocaleTimeString();
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    openWindows.get(appId).addEventListener("remove", () => clearInterval(timer));
+  }
+
+  if (appId === "terminal") setupTerminal(content);
+  if (appId === "settings") setupSettings(content);
+  if (appId === "appstore") setupStore(content);
+}
+
+function safeCalculate(expression) {
+  const cleaned = expression.replace(/\s/g, "");
+  if (!cleaned || !/^[0-9+\-*/().]+$/.test(cleaned)) {
+    throw new Error("Invalid expression");
+  }
+
+  const tokens = cleaned.match(/\d*\.?\d+|[()+\-*/]/g) || [];
+  if (tokens.join("") !== cleaned) throw new Error("Invalid tokens");
+
+  let index = 0;
+
+  function primary() {
+    if (tokens[index] === "(") {
+      index++;
+      const value = addSub();
+      if (tokens[index++] !== ")") throw new Error("Missing bracket");
+      return value;
+    }
+    const value = Number(tokens[index++]);
+    if (!Number.isFinite(value)) throw new Error("Invalid number");
+    return value;
+  }
+
+  function unary() {
+    if (tokens[index] === "-") {
+      index++;
+      return -unary();
+    }
+    if (tokens[index] === "+") {
+      index++;
+      return unary();
+    }
+    return primary();
+  }
+
+  function mulDiv() {
+    let value = unary();
+    while (tokens[index] === "*" || tokens[index] === "/") {
+      const op = tokens[index++];
+      const next = unary();
+      value = op === "*" ? value * next : value / next;
+    }
+    return value;
+  }
+
+  function addSub() {
+    let value = mulDiv();
+    while (tokens[index] === "+" || tokens[index] === "-") {
+      const op = tokens[index++];
+      const next = mulDiv();
+      value = op === "+" ? value + next : value - next;
+    }
+    return value;
+  }
+
+  const result = addSub();
+  if (index !== tokens.length || !Number.isFinite(result)) {
+    throw new Error("Invalid calculation");
+  }
+  return result;
+}
+
+function setupTerminal(content) {
+  const input = content.querySelector("#terminal-input");
+  const output = content.querySelector("#terminal-output");
 
   input.addEventListener("keydown", event => {
     if (event.key !== "Enter") return;
 
     const command = input.value.trim().toLowerCase();
-
     const line = document.createElement("p");
-    line.textContent = `> ${input.value}`;
-
+    line.textContent = "> " + command;
     output.appendChild(line);
 
+    const response = document.createElement("p");
+
     const commands = {
-      help: "Commands: help, about, date, version, apps, clear",
-      about: "axeOS Hybrid Desktop Environment.",
+      help: "Commands: help, about, version, date, apps, clear",
+      about: "axeOS 1.3 browser desktop.",
+      version: "axeOS 1.3.0",
       date: new Date().toString(),
-      version: "axeOS 1.2.0",
-      apps: settings.installed.join(", ")
+      apps: APPS.map(app => app.name).join(", ")
     };
 
     if (command === "clear") {
-      output.replaceChildren();
+      output.innerHTML = "";
     } else {
-      const result = document.createElement("p");
-
-      result.textContent =
-        commands[command] || "Unknown command.";
-
-      output.appendChild(result);
+      response.textContent = commands[command] || "Unknown command.";
+      output.appendChild(response);
     }
 
     input.value = "";
@@ -832,456 +728,106 @@ function setupTerminal(win) {
   });
 }
 
-/* =====================================
-   CALCULATOR
-===================================== */
-
-// Safe arithmetic parser: no eval or Function execution.
-
-function calculate(expression) {
-  const tokens = expression.match(
-    /\d+(?:\.\d+)?|[()+\-*/]/g
-  );
-
-  if (!tokens || tokens.join("") !== expression.replace(/\s/g, "")) {
-    throw new Error("Invalid expression");
-  }
-
-  let position = 0;
-
-  function parseExpression() {
-    let value = parseTerm();
-
-    while (
-      tokens[position] === "+" ||
-      tokens[position] === "-"
-    ) {
-      const operator = tokens[position++];
-
-      const right = parseTerm();
-
-      value = operator === "+"
-        ? value + right
-        : value - right;
-    }
-
-    return value;
-  }
-
-  function parseTerm() {
-    let value = parseFactor();
-
-    while (
-      tokens[position] === "*" ||
-      tokens[position] === "/"
-    ) {
-      const operator = tokens[position++];
-
-      const right = parseFactor();
-
-      if (operator === "/" && right === 0) {
-        throw new Error("Division by zero");
-      }
-
-      value = operator === "*"
-        ? value * right
-        : value / right;
-    }
-
-    return value;
-  }
-
-  function parseFactor() {
-    const token = tokens[position];
-
-    if (token === "-") {
-      position++;
-      return -parseFactor();
-    }
-
-    if (token === "+") {
-      position++;
-      return parseFactor();
-    }
-
-    if (token === "(") {
-      position++;
-
-      const value = parseExpression();
-
-      if (tokens[position++] !== ")") {
-        throw new Error("Missing closing bracket");
-      }
-
-      return value;
-    }
-
-    if (!token || !/^\d+(?:\.\d+)?$/.test(token)) {
-      throw new Error("Invalid number");
-    }
-
-    position++;
-
-    return Number(token);
-  }
-
-  const result = parseExpression();
-
-  if (position !== tokens.length || !Number.isFinite(result)) {
-    throw new Error("Invalid expression");
-  }
-
-  return result;
-}
-
-function setupCalculator(win) {
-  const display = win.querySelector("#calcDisplay");
-
-  let expression = "";
-
-  win.querySelectorAll(".calc-key").forEach(button => {
+function setupSettings(content) {
+  content.querySelectorAll("[data-wallpaper]").forEach(button => {
     button.addEventListener("click", () => {
-      const key = button.dataset.key;
-
-      if (key === "C") {
-        expression = "";
-        display.value = "";
-        return;
-      }
-
-      if (key === "=") {
-        try {
-          const result = calculate(expression);
-
-          display.value = String(result);
-          expression = String(result);
-        } catch {
-          display.value = "Error";
-          expression = "";
-        }
-
-        return;
-      }
-
-      expression += key;
-      display.value = expression;
+      state.wallpaper = button.dataset.wallpaper;
+      applyWallpaper();
+      saveState();
     });
   });
-}
 
-/* =====================================
-   CLOCK APPLICATION
-===================================== */
-
-function setupClock(win) {
-  const time = win.querySelector("#clockAppTime");
-  const date = win.querySelector("#clockAppDate");
-
-  function update() {
-    time.textContent =
-      new Date().toLocaleTimeString();
-
-    date.textContent =
-      new Date().toDateString();
-  }
-
-  update();
-
-  const timer = setInterval(() => {
-    if (!win.isConnected) {
-      clearInterval(timer);
-      return;
-    }
-
-    update();
-  }, 1000);
-}
-
-/* =====================================
-   SYSTEM SETTINGS
-===================================== */
-
-function setupSettings(win) {
-  const theme = win.querySelector("#themeSelect");
-  const accent = win.querySelector("#accentPicker");
-  const scale = win.querySelector("#scaleSelect");
-  const sound = win.querySelector("#soundSelect");
-
-  theme.value = settings.theme;
-  accent.value = settings.accent;
-  scale.value = settings.scale;
-  sound.value = String(settings.sound);
-
-  theme.addEventListener("change", () => {
-    settings.theme = theme.value;
-    saveSettings();
-    applySettings();
-  });
-
-  accent.addEventListener("input", () => {
-    settings.accent = accent.value;
-    saveSettings();
-    applySettings();
-  });
-
-  scale.addEventListener("change", () => {
-    settings.scale = scale.value;
-    saveSettings();
-    applySettings();
-  });
-
-  sound.addEventListener("change", () => {
-    settings.sound = sound.value === "true";
-    saveSettings();
-  });
-
-  win.querySelectorAll("[data-wall]").forEach(button => {
+  const list = content.querySelector("#dock-settings");
+  state.dock.forEach(appId => {
+    const app = getApp(appId);
+    if (!app) return;
+    const button = document.createElement("button");
+    button.textContent = "Unpin " + app.name;
     button.addEventListener("click", () => {
-      settings.wallpaper = button.dataset.wall;
-      settings.customWallpaper = "";
-
-      saveSettings();
-      applySettings();
-
-      notify("Wallpaper updated.");
+      unpinApp(appId);
+      button.remove();
     });
+    list.appendChild(button);
   });
-
-  const upload = win.querySelector("#wallpaperUpload");
-
-  upload.addEventListener("change", () => {
-    const file = upload.files[0];
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      notify("Please select an image.");
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      notify("Maximum wallpaper size is 2 MB.");
-      upload.value = "";
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      settings.customWallpaper = `url("${reader.result}") center / cover no-repeat`;
-      saveSettings();
-      applySettings();
-
-      notify("Custom wallpaper applied.");
-    };
-
-    reader.onerror = () => notify("Could not read image.");
-
-    reader.readAsDataURL(file);
-  });
-
-  win.querySelector("#removeCustomWallpaper")
-    .addEventListener("click", () => {
-      settings.customWallpaper = "";
-      settings.wallpaper = "emerald";
-
-      saveSettings();
-      applySettings();
-
-      notify("Default wallpaper restored.");
-    });
-
-  win.querySelector("#resetSettings")
-    .addEventListener("click", () => {
-      if (!confirm("Restore axeOS preferences to defaults?")) {
-        return;
-      }
-
-      settings = {
-        ...DEFAULT_SETTINGS,
-        installed: [...DEFAULT_SETTINGS.installed]
-      };
-
-      saveSettings();
-      applySettings();
-
-      notify("Preferences restored.");
-
-      openApp("settings");
-      win.remove();
-    });
 }
 
-/* =====================================
-   APP STORE
-===================================== */
-
-function setupStore(win) {
-  const search = win.querySelector("#storeSearch");
-
-  function renderStore(query = "") {
-    const container = win.querySelector("#storeApps");
-
-    container.replaceChildren();
-
-    const results = catalog.filter(app => {
-      const text =
-        `${app.name} ${app.category} ${app.description}`
-          .toLowerCase();
-
-      return text.includes(query.toLowerCase());
-    });
-
-    if (!results.length) {
-      const empty = document.createElement("p");
-      empty.textContent = "No applications found.";
-      container.appendChild(empty);
-      return;
-    }
-
-    results.forEach(app => {
-      const installed = settings.installed.includes(app.id);
-
-      const card = document.createElement("div");
-      card.className = "store-card";
-
-      const icon = document.createElement("div");
-      icon.className = "store-icon";
-      icon.textContent = app.icon;
-
-      const info = document.createElement("div");
-      info.className = "store-info";
-
-      const title = document.createElement("h3");
-      title.textContent = app.name;
-
-      const description = document.createElement("p");
-      description.textContent = app.description;
-
-      info.append(title, description);
-
-      const button = document.createElement("button");
-      button.className = "action";
-      button.textContent = installed ? "Open" : "Install";
-
-      button.addEventListener("click", () => {
-        if (installed) {
-          openApp(app.id);
-          return;
-        }
-
-        settings.installed.push(app.id);
-        saveSettings();
-
-        notify(`${app.name} installed.`);
-
-        renderStore(search.value);
+function setupStore(content) {
+  const list = content.querySelector("#store-list");
+  APPS.filter(app => !state.items.some(item =>
+    item.type === "app" && item.appId === app.id
+  )).forEach(app => {
+    const card = document.createElement("div");
+    card.className = "app-card";
+    const title = document.createElement("strong");
+    title.textContent = app.name;
+    const description = document.createElement("small");
+    description.textContent = app.description;
+    const button = document.createElement("button");
+    button.textContent = "Add to desktop";
+    button.addEventListener("click", () => {
+      state.items.push({
+        id: createId(),
+        type: "app",
+        appId: app.id,
+        name: app.name
       });
-
-      const uninstall = document.createElement("button");
-      uninstall.className = "action";
-      uninstall.textContent = "Remove";
-      uninstall.style.marginTop = "6px";
-
-      uninstall.addEventListener("click", () => {
-        settings.installed =
-          settings.installed.filter(id => id !== app.id);
-
-        saveSettings();
-
-        notify(`${app.name} removed.`);
-
-        renderStore(search.value);
-      });
-
-      const actions = document.createElement("div");
-      actions.append(button);
-
-      if (installed) {
-        actions.append(uninstall);
-      }
-
-      card.append(icon, info, actions);
-      container.appendChild(card);
+      saveState();
+      renderDesktop();
+      setupStore(content);
     });
+    card.append(title, description, button);
+    list.appendChild(card);
+  });
+
+  if (!list.children.length) {
+    list.textContent = "All catalogue apps are already on your desktop.";
   }
-
-  search.addEventListener("input", () => {
-    renderStore(search.value);
-  });
-
-  renderStore();
 }
 
-/* =====================================
-   DESKTOP APPLICATION LAUNCHING
-===================================== */
+function applyWallpaper() {
+  const wallpapers = {
+    emerald: "radial-gradient(ellipse at 75% 25%,#1d6449,transparent 48%),linear-gradient(135deg,#071b16,#102a20)",
+    midnight: "radial-gradient(ellipse at 70% 20%,#283d5e,transparent 50%),linear-gradient(135deg,#080d19,#111c31)",
+    forest: "radial-gradient(ellipse at 70% 25%,#426a36,transparent 50%),linear-gradient(135deg,#101d12,#1c3320)"
+  };
+  document.getElementById("desktop").style.background =
+    wallpapers[state.wallpaper] || wallpapers.emerald;
+}
 
-document.querySelectorAll("[data-app]").forEach(button => {
+document.querySelectorAll("[data-open]").forEach(button => {
+  button.addEventListener("click", () => openApp(button.dataset.open));
+});
+
+document.getElementById("powerButton").addEventListener("click", () => {
+  document.getElementById("power-menu").classList.toggle("hidden");
+});
+
+document.querySelectorAll("[data-power]").forEach(button => {
   button.addEventListener("click", () => {
-    openApp(button.dataset.app);
+    const action = button.dataset.power;
+    document.getElementById("power-menu").classList.add("hidden");
+
+    if (action === "restart") {
+      openWindows.forEach(window => window.remove());
+      openWindows.clear();
+      renderDock();
+      renderDesktop();
+    }
+
+    if (action === "lock") {
+      const password = prompt("Enter a temporary screen lock phrase:");
+      if (password !== null) alert("This demo does not provide secure account locking.");
+    }
   });
 });
 
-/* =====================================
-   POWER MANAGEMENT
-===================================== */
-
-const powerMenu = $("#powerMenu");
-
-$("#powerButton").addEventListener("click", () => {
-  powerMenu.classList.toggle("hidden");
-});
-
-$("#cancelPower").addEventListener("click", () => {
-  powerMenu.classList.add("hidden");
-});
-
-function restartSystem() {
-  powerMenu.classList.add("hidden");
-
-  windowLayer.replaceChildren();
-
-  desktop.classList.add("hidden");
-
-  bootScreen.classList.remove("hidden");
-  bootScreen.classList.remove("boot-exit");
-
-  $("#bootStatus").textContent = "System restarting...";
-  $("#bootProgress").style.width = "0%";
-
-  $("#startButton").disabled = false;
-  $("#startButton").textContent = "Restart axeOS";
-
-  booting = false;
+function updateClock() {
+  document.getElementById("clock").textContent =
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-$("#restartButton").addEventListener(
-  "click",
-  restartSystem
-);
-
-$("#shutdownButton").addEventListener("click", () => {
-  powerMenu.classList.add("hidden");
-
-  windowLayer.replaceChildren();
-
-  desktop.classList.add("hidden");
-
-  bootScreen.classList.remove("hidden");
-  bootScreen.classList.remove("boot-exit");
-
-  $("#bootStatus").textContent = "axeOS has shut down.";
-  $("#bootProgress").style.width = "0%";
-
-  $("#startButton").disabled = false;
-  $("#startButton").textContent = "Power on";
-
-  booting = false;
-});
-
-/* =====================================
-   END OF AXEOS DESKTOP ENGINE
-===================================== */
-
-console.log("axeOS 1.2.0 desktop engine loaded.");
+applyWallpaper();
+renderDesktop();
+renderDock();
+updateClock();
+setInterval(updateClock, 1000);
