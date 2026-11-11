@@ -2,13 +2,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Alegreya:wght@400;500;600;700&display=swap');
 
 :root {
-  --background: #071d18;
-  --panel: rgba(10, 39, 30, 0.94);
-  --glass: rgba(255, 255, 255, 0.08);
-  --green: #36b58a;
+  --bg: #071d18;
+  --panel: rgba(9, 35, 26, .96);
+  --accent: #36b58a;
   --gold: #d6bd82;
-  --white: #edf5ef;
+  --text: #edf5ef;
   --muted: #a4b9ad;
+  --border: rgba(255,255,255,.13);
+  --wallpaper: radial-gradient(ellipse at 75% 25%,#14533b,transparent 45%),linear-gradient(135deg,#061510,#0b241c);
+  --scale: 1;
 }
 
 * {
@@ -17,218 +19,642 @@
 
 body {
   margin: 0;
-  font-family: 'Alegreya', serif;
-  background: var(--background);
-  color: var(--white);
+  font-family: 'Alegreya', Georgia, serif;
+  background: var(--bg);
+  color: var(--text);
 }
 
-#desktop {
-  min-height: 100vh;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse at 75% 25%, #14533b 0%, transparent 45%),
-    radial-gradient(ellipse at 15% 90%, #103b30 0%, transparent 45%),
-    linear-gradient(135deg, #061510, #0b241c 55%, #07140f);
+button, input, textarea, select {
+  font-family: inherit;
 }
+
+button {
+  cursor: pointer;
+  color: inherit;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* =========================
+   BOOT SCREEN
+========================= */
+
+#bootScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 45%,#164c36,transparent 50%),
+    linear-gradient(140deg,#030b08,#0a2118);
+  animation: bootFade .8s ease;
+}
+
+.boot-content {
+  animation: bootRise 1.3s ease both;
+}
+
+.boot-logo {
+  font-size: clamp(65px,12vw,95px);
+  font-weight: 600;
+  letter-spacing: -5px;
+}
+
+.boot-logo span {
+  color: var(--accent);
+}
+
+.boot-tagline {
+  color: var(--muted);
+  font-size: 19px;
+  letter-spacing: .5px;
+}
+
+.boot-spinner {
+  width: 34px;
+  height: 34px;
+  border: 2px solid #315a47;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 35px auto 15px;
+  animation: spin 1s linear infinite;
+}
+
+#bootStatus {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.boot-progress {
+  height: 4px;
+  width: min(260px,70vw);
+  margin: 20px auto;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff16;
+}
+
+#bootProgress {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width .4s ease;
+}
+
+#startButton {
+  background: var(--accent);
+  color: #04150e;
+  border: 0;
+  border-radius: 9px;
+  padding: 11px 28px;
+  font-size: 17px;
+  font-weight: 700;
+  margin-top: 15px;
+  transition: .2s;
+}
+
+#startButton:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.boot-version {
+  position: absolute;
+  bottom: 25px;
+  color: #779688;
+  font-size: 13px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bootRise {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bootFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.boot-exit {
+  animation: bootExit .55s ease forwards;
+}
+
+@keyframes bootExit {
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+    visibility: hidden;
+  }
+}
+
+/* =========================
+   DESKTOP
+========================= */
+
+#desktop {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  min-height: 500px;
+  overflow: hidden;
+  background: var(--wallpaper);
+  font-size: calc(16px * var(--scale));
+  transition: background .4s;
+}
+
+/* TOP BAR */
 
 .topbar {
   height: 54px;
-  padding: 0 25px;
+  padding: 0 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(0, 0, 0, .22);
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.24);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 40;
 }
 
 .brand {
   color: var(--gold);
-  font-size: 23px;
+  font-size: 24px;
   font-weight: 700;
+  background: transparent;
+  border: 0;
 }
 
-.topbar button {
-  color: white;
+.top-center {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#powerButton {
   border: 0;
   background: transparent;
   font-size: 22px;
-  cursor: pointer;
 }
 
-.welcome {
-  position: absolute;
-  top: 25%;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  width: 90%;
-}
-
-.eyebrow {
-  color: var(--gold);
-  letter-spacing: 5px;
-  font-size: 12px;
-}
-
-.welcome h1 {
-  font-size: clamp(65px, 12vw, 115px);
-  margin: 0;
-  font-weight: 500;
-  letter-spacing: -5px;
-}
-
-.welcome h1 span {
-  color: var(--green);
-}
-
-.subtitle {
-  color: var(--muted);
-  font-size: 19px;
-}
+/* DESKTOP ICONS */
 
 .desktop-icons {
   position: absolute;
-  top: 85px;
-  left: 20px;
+  top: 78px;
+  left: 17px;
   display: grid;
-  gap: 20px;
+  grid-template-columns: 85px;
+  gap: 17px;
+  z-index: 1;
 }
 
 .app-icon {
-  width: 85px;
-  background: transparent;
-  border: none;
-  color: var(--white);
-  cursor: pointer;
-  font: inherit;
   display: grid;
   justify-items: center;
   gap: 6px;
+  background: transparent;
+  border: 0;
+  font-size: 14px;
+  color: var(--text);
 }
 
 .icon {
-  height: 48px;
-  width: 48px;
+  height: 47px;
+  width: 47px;
   display: grid;
   place-items: center;
-  font-size: 24px;
-  border-radius: 15px;
-  background: var(--glass);
-  border: 1px solid rgba(255,255,255,.12);
+  background: #ffffff13;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  font-size: 23px;
+  transition: .2s;
 }
+
+.app-icon:hover .icon {
+  background: var(--accent);
+  color: #071d18;
+  transform: translateY(-4px);
+}
+
+/* =========================
+   WINDOW MANAGER
+========================= */
+
+#windowLayer {
+  position: absolute;
+  inset: 54px 0 80px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.window {
+  position: absolute;
+  top: 45px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px,92vw);
+  max-height: calc(100% - 55px);
+  overflow: auto;
+  pointer-events: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  box-shadow: 0 25px 80px #0009;
+  backdrop-filter: blur(25px);
+  animation: windowOpen .2s ease;
+}
+
+@keyframes windowOpen {
+  from {
+    opacity: 0;
+    scale: .96;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.window-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 15px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+  z-index: 2;
+}
+
+.window-header:active {
+  cursor: grabbing;
+}
+
+.window-controls {
+  display: flex;
+  gap: 7px;
+}
+
+.window-controls button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: #ffffff13;
+  font-size: 17px;
+}
+
+.window-controls button:hover {
+  background: var(--accent);
+  color: #071d18;
+}
+
+.window-content {
+  padding: 20px;
+  overflow-wrap: anywhere;
+}
+
+.window-content h2 {
+  margin-top: 0;
+  font-size: 25px;
+}
+
+.window-content p {
+  color: var(--muted);
+}
+
+.window-content input,
+.window-content textarea,
+.window-content select {
+  width: 100%;
+  padding: 11px;
+  margin: 8px 0;
+  color: var(--text);
+  background: #071b14;
+  border: 1px solid #315b48;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.window-content textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+body.light .window-content input,
+body.light .window-content textarea,
+body.light .window-content select {
+  color: #14291e;
+  background: white;
+}
+
+.action {
+  background: var(--accent);
+  color: #071d18;
+  padding: 9px 17px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.action:hover {
+  filter: brightness(1.12);
+}
+
+/* =========================
+   DOCK
+========================= */
 
 .dock {
   position: fixed;
-  bottom: 20px;
+  bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 12px;
-  padding: 12px 17px;
-  border: 1px solid rgba(255,255,255,.15);
-  background: rgba(8, 29, 22, .85);
-  backdrop-filter: blur(20px);
+  gap: 10px;
+  padding: 11px 13px;
+  background: rgba(4,22,15,.85);
+  backdrop-filter: blur(25px);
+  border: 1px solid var(--border);
   border-radius: 20px;
+  z-index: 50;
 }
 
 .dock button {
   width: 45px;
   height: 45px;
-  border-radius: 13px;
-  background: var(--glass);
-  color: var(--white);
-  border: 1px solid rgba(255,255,255,.08);
-  font-size: 22px;
-  cursor: pointer;
+  color: var(--text);
+  background: #ffffff10;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 21px;
   transition: .2s;
 }
 
 .dock button:hover {
-  transform: translateY(-6px);
-  background: #246b50;
+  transform: translateY(-7px);
+  background: var(--accent);
+  color: #071d18;
 }
 
-.window {
-  position: absolute;
-  top: 18%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(520px, 90vw);
-  min-height: 240px;
-  background: var(--panel);
-  border: 1px solid rgba(214,189,130,.35);
-  border-radius: 17px;
-  box-shadow: 0 20px 70px #0008;
-  backdrop-filter: blur(25px);
-  overflow: hidden;
-  z-index: 5;
+/* =========================
+   SETTINGS
+========================= */
+
+.setting-card,
+.store-card {
+  padding: 15px;
+  margin: 12px 0;
+  background: #ffffff08;
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
 
-.window-header {
+.setting-card h3,
+.store-card h3 {
+  margin-top: 0;
+}
+
+.wallpapers {
   display: flex;
-  justify-content: space-between;
-  padding: 13px 17px;
-  background: rgba(255,255,255,.05);
-  border-bottom: 1px solid rgba(255,255,255,.1);
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.close {
-  color: white;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-size: 18px;
+.wallpaper-choice {
+  width: 65px;
+  height: 55px;
+  border: 2px solid #ffffff40;
+  border-radius: 9px;
+  transition: .2s;
 }
 
-.window-content {
-  padding: 20px;
+.wallpaper-choice:hover {
+  transform: scale(1.08);
+  border-color: var(--accent);
 }
 
-.window-content input,
-.window-content textarea {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  background: #071b14;
-  border: 1px solid #315b48;
-  border-radius: 8px;
-  color: white;
-  font: inherit;
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.window-content textarea {
-  min-height: 140px;
-  resize: vertical;
+.color-row input {
+  width: 65px;
+  height: 45px;
+  padding: 3px;
 }
 
-.window-content button {
-  background: #205b42;
-  color: white;
-  border: 1px solid #477d60;
-  padding: 9px 15px;
-  border-radius: 8px;
-  cursor: pointer;
+/* =========================
+   APP STORE
+========================= */
+
+.store-search {
+  margin-bottom: 15px;
 }
+
+.store-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.store-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: #ffffff12;
+  border-radius: 13px;
+  font-size: 23px;
+}
+
+.store-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.store-info h3 {
+  margin-bottom: 3px;
+}
+
+.store-info p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.store-card button {
+  flex-shrink: 0;
+}
+
+/* =========================
+   CALCULATOR
+========================= */
+
+.calc-buttons {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.calc-buttons button {
+  min-height: 43px;
+  font-size: 17px;
+}
+
+/* =========================
+   NOTIFICATIONS
+========================= */
 
 #notification {
   position: fixed;
   bottom: 95px;
   left: 50%;
   transform: translateX(-50%);
-  background: #153b2b;
-  padding: 10px 20px;
-  border-radius: 10px;
+  z-index: 100;
   display: none;
-  z-index: 20;
+  padding: 11px 20px;
+  color: var(--text);
+  background: #17422f;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px #0005;
+  max-width: 90vw;
 }
 
-@media(max-width: 600px) {
-  .welcome {
-    top: 35%;
+/* =========================
+   POWER MENU
+========================= */
+
+.power-menu {
+  position: fixed;
+  top: 65px;
+  right: 15px;
+  z-index: 100;
+  width: 215px;
+  padding: 17px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 15px 40px #0006;
+}
+
+.power-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border: 0;
+  border-radius: 8px;
+  background: #ffffff10;
+  color: var(--text);
+}
+
+.power-menu button:hover {
+  background: var(--accent);
+  color: #071d18;
+}
+
+/* =========================
+   LIGHT THEME
+========================= */
+
+body.light {
+  --bg: #e9f0eb;
+  --panel: rgba(238,246,239,.97);
+  --text: #14291e;
+  --muted: #566e60;
+  --border: rgba(0,0,0,.14);
+}
+
+body.light .topbar {
+  background: #ffffff80;
+}
+
+body.light .dock {
+  background: #e7f1e9e8;
+}
+
+body.light .power-menu button {
+  color: #14291e;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media(max-width:650px) {
+  .desktop-icons {
+    grid-template-columns: repeat(2,85px);
+    gap: 20px;
   }
 
-  .desktop-icons {
-    grid-template-columns: repeat(2, 1fr);
+  .top-center {
+    display: none;
+  }
+
+  .top-right {
+    gap: 9px;
+  }
+
+  .window {
+    top: 25px;
+    width: 94%;
+  }
+
+  .dock {
+    gap: 6px;
+    padding: 9px;
+  }
+
+  .dock button {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ACCESSIBILITY */
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
   }
 }
