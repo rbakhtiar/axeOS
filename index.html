@@ -3,54 +3,115 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071d18">
+  <meta name="description" content="axeOS - A quieter way to compute.">
   <title>axeOS</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="desktop">
+
+  <!-- BOOT EXPERIENCE -->
+  <section id="bootScreen">
+    <div class="boot-content">
+      <div class="boot-logo">axe<span>OS</span></div>
+      <p class="boot-tagline">A quieter way to compute.</p>
+
+      <div class="boot-spinner"></div>
+
+      <p id="bootStatus">System standby</p>
+
+      <div class="boot-progress">
+        <div id="bootProgress"></div>
+      </div>
+
+      <button id="startButton">Start axeOS</button>
+    </div>
+
+    <span class="boot-version">axeOS 1.2.0</span>
+  </section>
+
+  <!-- OPERATING SYSTEM DESKTOP -->
+  <main id="desktop" class="hidden">
+
     <header class="topbar">
-      <div class="brand">axeOS</div>
-      <div id="clock">00:00</div>
-      <button id="powerButton" aria-label="Power menu">⏻</button>
+      <button class="brand" data-app="about">axeOS</button>
+
+      <div class="top-center">
+        <span>Desktop</span>
+      </div>
+
+      <div class="top-right">
+        <span id="networkStatus">ONLINE</span>
+        <span id="clock">00:00</span>
+
+        <button id="powerButton" aria-label="Power menu">
+          ⏻
+        </button>
+      </div>
     </header>
 
-    <section class="welcome">
-      <p class="eyebrow">WELCOME TO</p>
-      <h1>axeOS<span>.</span></h1>
-      <p class="subtitle">A quieter way to compute.</p>
-    </section>
-
+    <!-- DESKTOP APPLICATIONS -->
     <section class="desktop-icons">
+
       <button class="app-icon" data-app="files">
         <span class="icon">▤</span>
         <span>Files</span>
       </button>
+
       <button class="app-icon" data-app="notes">
         <span class="icon">▧</span>
         <span>Notes</span>
       </button>
+
+      <button class="app-icon" data-app="settings">
+        <span class="icon">⚙</span>
+        <span>Settings</span>
+      </button>
+
+      <button class="app-icon" data-app="store">
+        <span class="icon">▣</span>
+        <span>App Store</span>
+      </button>
+
       <button class="app-icon" data-app="terminal">
         <span class="icon">⌘</span>
         <span>Terminal</span>
       </button>
+
       <button class="app-icon" data-app="about">
         <span class="icon">◈</span>
         <span>About axeOS</span>
       </button>
+
     </section>
 
-    <div id="windowLayer"></div>
+    <!-- APPLICATION WINDOWS -->
+    <section id="windowLayer"></section>
 
+    <!-- BOTTOM DOCK -->
     <nav class="dock">
-      <button data-app="files" aria-label="Files">▤</button>
-      <button data-app="notes" aria-label="Notes">▧</button>
-      <button data-app="terminal" aria-label="Terminal">⌘</button>
-      <button data-app="about" aria-label="About">◈</button>
+
+      <button data-app="files" title="Files">▤</button>
+      <button data-app="notes" title="Notes">▧</button>
+      <button data-app="store" title="App Store">▣</button>
+      <button data-app="settings" title="Settings">⚙</button>
+      <button data-app="terminal" title="Terminal">⌘</button>
+
     </nav>
 
+    <!-- NOTIFICATIONS -->
     <div id="notification" role="status"></div>
+
+    <!-- POWER MENU -->
+    <section id="powerMenu" class="power-menu hidden">
+      <h3>System Power</h3>
+
+      <button id="restartButton">Restart axeOS</button>
+      <button id="shutdownButton">Shut down</button>
+      <button id="cancelPower">Cancel</button>
+    </section>
+
   </main>
 
   <script src="script.js"></script>
