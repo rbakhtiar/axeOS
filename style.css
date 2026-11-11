@@ -1,0 +1,234 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Alegreya:wght@400;500;600;700&display=swap');
+
+:root {
+  --background: #071d18;
+  --panel: rgba(10, 39, 30, 0.94);
+  --glass: rgba(255, 255, 255, 0.08);
+  --green: #36b58a;
+  --gold: #d6bd82;
+  --white: #edf5ef;
+  --muted: #a4b9ad;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Alegreya', serif;
+  background: var(--background);
+  color: var(--white);
+}
+
+#desktop {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 75% 25%, #14533b 0%, transparent 45%),
+    radial-gradient(ellipse at 15% 90%, #103b30 0%, transparent 45%),
+    linear-gradient(135deg, #061510, #0b241c 55%, #07140f);
+}
+
+.topbar {
+  height: 54px;
+  padding: 0 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, .22);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.brand {
+  color: var(--gold);
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.topbar button {
+  color: white;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.welcome {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  width: 90%;
+}
+
+.eyebrow {
+  color: var(--gold);
+  letter-spacing: 5px;
+  font-size: 12px;
+}
+
+.welcome h1 {
+  font-size: clamp(65px, 12vw, 115px);
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: -5px;
+}
+
+.welcome h1 span {
+  color: var(--green);
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 19px;
+}
+
+.desktop-icons {
+  position: absolute;
+  top: 85px;
+  left: 20px;
+  display: grid;
+  gap: 20px;
+}
+
+.app-icon {
+  width: 85px;
+  background: transparent;
+  border: none;
+  color: var(--white);
+  cursor: pointer;
+  font: inherit;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.icon {
+  height: 48px;
+  width: 48px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  border-radius: 15px;
+  background: var(--glass);
+  border: 1px solid rgba(255,255,255,.12);
+}
+
+.dock {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  padding: 12px 17px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(8, 29, 22, .85);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+}
+
+.dock button {
+  width: 45px;
+  height: 45px;
+  border-radius: 13px;
+  background: var(--glass);
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 22px;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.dock button:hover {
+  transform: translateY(-6px);
+  background: #246b50;
+}
+
+.window {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 90vw);
+  min-height: 240px;
+  background: var(--panel);
+  border: 1px solid rgba(214,189,130,.35);
+  border-radius: 17px;
+  box-shadow: 0 20px 70px #0008;
+  backdrop-filter: blur(25px);
+  overflow: hidden;
+  z-index: 5;
+}
+
+.window-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 13px 17px;
+  background: rgba(255,255,255,.05);
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+
+.close {
+  color: white;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.window-content {
+  padding: 20px;
+}
+
+.window-content input,
+.window-content textarea {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  background: #071b14;
+  border: 1px solid #315b48;
+  border-radius: 8px;
+  color: white;
+  font: inherit;
+}
+
+.window-content textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.window-content button {
+  background: #205b42;
+  color: white;
+  border: 1px solid #477d60;
+  padding: 9px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#notification {
+  position: fixed;
+  bottom: 95px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #153b2b;
+  padding: 10px 20px;
+  border-radius: 10px;
+  display: none;
+  z-index: 20;
+}
+
+@media(max-width: 600px) {
+  .welcome {
+    top: 35%;
+  }
+
+  .desktop-icons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
