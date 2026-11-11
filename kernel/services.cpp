@@ -1,32 +1,42 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 class AxeService {
 private:
     std::string name;
+    bool running = false;
 
 public:
-    AxeService(const std::string& serviceName)
+    explicit AxeService(const std::string& serviceName)
         : name(serviceName) {}
 
-    void start() const {
-        std::cout << "[axeOS] Starting "
-                  << name << "...\n";
+    void start() {
+        running = true;
+        std::cout << "[axeOS] Started: " << name << "\n";
     }
 
-    void stop() const {
-        std::cout << "[axeOS] Stopping "
-                  << name << "...\n";
+    void stop() {
+        running = false;
+        std::cout << "[axeOS] Stopped: " << name << "\n";
+    }
+
+    bool isRunning() const {
+        return running;
     }
 };
 
 int main() {
-    AxeService desktop("Desktop Service");
-    AxeService system("System Service");
+    std::vector<AxeService> services;
 
-    desktop.start();
-    system.start();
+    services.emplace_back("Desktop Service");
+    services.emplace_back("Application Service");
+    services.emplace_back("System Service");
+
+    for (auto& service : services) {
+        service.start();
+    }
 
     std::cout << "axeOS services initialized.\n";
 
