@@ -1,0 +1,58 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#071d18">
+  <title>axeOS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="desktop">
+    <header class="topbar">
+      <div class="brand">axeOS</div>
+      <div id="clock">00:00</div>
+      <button id="powerButton" aria-label="Power menu">⏻</button>
+    </header>
+
+    <section class="welcome">
+      <p class="eyebrow">WELCOME TO</p>
+      <h1>axeOS<span>.</span></h1>
+      <p class="subtitle">A quieter way to compute.</p>
+    </section>
+
+    <section class="desktop-icons">
+      <button class="app-icon" data-app="files">
+        <span class="icon">▤</span>
+        <span>Files</span>
+      </button>
+      <button class="app-icon" data-app="notes">
+        <span class="icon">▧</span>
+        <span>Notes</span>
+      </button>
+      <button class="app-icon" data-app="terminal">
+        <span class="icon">⌘</span>
+        <span>Terminal</span>
+      </button>
+      <button class="app-icon" data-app="about">
+        <span class="icon">◈</span>
+        <span>About axeOS</span>
+      </button>
+    </section>
+
+    <div id="windowLayer"></div>
+
+    <nav class="dock">
+      <button data-app="files" aria-label="Files">▤</button>
+      <button data-app="notes" aria-label="Notes">▧</button>
+      <button data-app="terminal" aria-label="Terminal">⌘</button>
+      <button data-app="about" aria-label="About">◈</button>
+    </nav>
+
+    <div id="notification" role="status"></div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
