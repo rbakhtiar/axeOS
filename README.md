@@ -3,40 +3,56 @@
 
 ### A quieter way to compute.
 
-axeOS is an experimental hybrid operating system project.
+axeOS is an independent hybrid operating system development project.
 
-## Architecture
+## Version 1.2.0
 
-- C: Kernel foundation
-- C++: System services
-- C#: System utilities
-- Rust: Safe system components
-- Assembly: Native entry-point experiments
-- HTML: Desktop structure
-- CSS: Desktop design
-- JavaScript: Desktop interaction engine
-
-## Features
-
+### Desktop features
+- Animated boot screen
+- Original startup sound
 - Desktop environment
+- Application window manager
 - Application dock
-- Window system
 - File picker
-- Notes application
-- Interactive terminal simulator
-- System information
+- Notes
+- Terminal simulator
+- Calculator
+- Clock
+- App Store
+- Application installation and removal
+- Custom wallpapers
+- Accent color customization
+- Light and dark themes
+- Persistent settings
 
-## Deployment
+### Technology
 
-The web desktop is hosted through GitHub Pages.
+| Language | Purpose |
+|---|---|
+| C | Kernel foundation |
+| C++ | System services |
+| C# | Utilities |
+| Rust | Native components |
+| Assembly | x86-64 experiments |
+| HTML | Desktop structure |
+| CSS | Interface design |
+| JavaScript | Desktop engine |
 
-## Important
+### Deployment
 
-The GitHub Pages version is a browser-based
-desktop environment, not a bootable operating system.
+Hosted using GitHub Pages.
 
-Native components are maintained separately.
+### Architecture
 
-## Version
+axeOS currently has a browser-based desktop and
+separate native development components.
 
-1.0.0 — Initial Development
+It is not yet a bootable operating system.
+
+### Roadmap
+
+- 1.0 Desktop foundation
+- 1.1 Experience update
+- 1.2 Window manager and App Store
+- 1.3 Advanced desktop
+- 2.0 Native core development
